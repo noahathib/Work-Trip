@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APA Plant Inspection Tour — NC / VA</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --ink:       #1a1a14;
+      --paper:     #f5f0e8;
+      --cream:     #ede7d6;
+      --amber:     #c8831a;
+      --amber-lt:  #e8a83a;
+      --forest:    #2c4a32;
+      --forest-lt: #3d6645;
+      --rust:      #8b3a2a;
+      --muted:     #7a7060;
+      --rule:      #c8bfa8;
+      --white:     #fdfaf4;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── NOISE TEXTURE OVERLAY ───────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* ─── HEADER ──────────────────────────────────────────────── */
+    header {
+      background: var(--forest);
+      color: var(--white);
+      padding: 4rem 2rem 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 6px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--amber) 0px,
+        var(--amber) 12px,
+        transparent 12px,
+        transparent 18px
+      );
+    }
+
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2rem;
+      align-items: end;
+    }
+
+    .trip-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--amber-lt);
+      margin-bottom: 0.75rem;
+      opacity: 0.9;
+    }
+
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.4rem, 5vw, 4.2rem);
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+      color: var(--white);
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--amber-lt);
+    }
+
+    .header-meta {
+      text-align: right;
+    }
+
+    .header-meta .badge {
+      display: inline-block;
+      background: var(--amber);
+      color: var(--ink);
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 500;
+      padding: 0.35em 0.8em;
+      border-radius: 2px;
+      margin-bottom: 0.6rem;
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 2rem;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .stat { text-align: center; }
+    .stat-num {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--amber-lt);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-top: 0.25rem;
+    }
+
+    /* ─── MAIN LAYOUT ─────────────────────────────────────────── */
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 2rem 5rem;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .two-col { grid-template-columns: 1fr; }
+      .header-inner { grid-template-columns: 1fr; }
+      .header-meta { text-align: left; }
+    }
+
+    /* ─── SECTION HEADERS ─────────────────────────────────────── */
+    .section-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.4rem;
+    }
+
+    .section-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.7rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+
+    /* ─── MAP ─────────────────────────────────────────────────── */
+    #map-wrap {
+      position: sticky;
+      top: 2rem;
+    }
+
+    #map {
+      height: 560px;
+      border-radius: 4px;
+      border: 2px solid var(--rule);
+      overflow: hidden;
+      box-shadow: 6px 6px 0 var(--rule);
+    }
+
+    .map-caption {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 0.6rem;
+      text-align: right;
+    }
+
+    /* ─── TIMELINE ────────────────────────────────────────────── */
+    .timeline {
+      position: relative;
+      padding-left: 2.5rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.65rem;
+      top: 0.5rem;
+      bottom: 0.5rem;
+      width: 1px;
+      background: var(--rule);
+    }
+
+    .day {
+      position: relative;
+      margin-bottom: 2.5rem;
+      opacity: 0;
+      transform: translateY(16px);
+      animation: fadeUp 0.5s ease forwards;
+    }
+
+    .day:nth-child(1) { animation-delay: 0.1s; }
+    .day:nth-child(2) { animation-delay: 0.2s; }
+    .day:nth-child(3) { animation-delay: 0.3s; }
+    .day:nth-child(4) { animation-delay: 0.4s; }
+    .day:nth-child(5) { animation-delay: 0.5s; }
+    .day:nth-child(6) { animation-delay: 0.6s; }
+    .day:nth-child(7) { animation-delay: 0.7s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: none; }
+    }
+
+    .day-dot {
+      position: absolute;
+      left: -2.5rem;
+      top: 0.25rem;
+      width: 1.3rem;
+      height: 1.3rem;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 2px solid var(--rule);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.55rem;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    .day-dot.inspection {
+      background: var(--forest);
+      border-color: var(--forest);
+      color: var(--white);
+    }
+
+    .day-dot.travel {
+      background: var(--amber);
+      border-color: var(--amber);
+      color: var(--ink);
+    }
+
+    .day-dot.family {
+      background: var(--rust);
+      border-color: var(--rust);
+      color: var(--white);
+    }
+
+    .day-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .day-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .day-tag {
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.2em 0.6em;
+      border-radius: 2px;
+      font-weight: 500;
+    }
+
+    .tag-inspection { background: var(--forest); color: var(--white); }
+    .tag-travel     { background: var(--amber);  color: var(--ink); }
+    .tag-family     { background: var(--rust);   color: var(--white); }
+    .tag-transit    { background: var(--cream);  color: var(--muted); border: 1px solid var(--rule); }
+
+    .day-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 3px 3px 0 var(--cream);
+    }
+
+    .day-card p {
+      font-size: 0.72rem;
+      line-height: 1.7;
+      color: var(--ink);
+      opacity: 0.85;
+    }
+
+    .day-card .detail-row {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--rule);
+      flex-wrap: wrap;
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .detail-key {
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .detail-val {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .detail-val.warn {
+      color: var(--rust);
+    }
+
+    /* ─── PLANT CARDS ─────────────────────────────────────────── */
+    .plants-section {
+      margin-top: 3.5rem;
+    }
+
+    .plants-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 600px) {
+      .plants-grid { grid-template-columns: 1fr; }
+    }
+
+    .plant-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .plant-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--forest);
+    }
+
+    .plant-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    .plant-num {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.3rem;
+    }
+
+    .plant-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.15rem;
+      line-height: 1.2;
+    }
+
+    .plant-location {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-bottom: 0.9rem;
+    }
+
+    .plant-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.68rem;
+      line-height: 1.4;
+    }
+
+    .meta-icon {
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      margin-top: 0.05rem;
+    }
+
+    .meta-text { color: var(--ink); opacity: 0.8; }
+    .meta-text strong { opacity: 1; font-weight: 500; }
+    .meta-text .alert { color: var(--rust); font-weight: 500; }
+
+    /* ─── TIPS BOX ────────────────────────────────────────────── */
+    .tips-section {
+      margin-top: 3.5rem;
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 700px) {
+      .tips-grid { grid-template-columns: 1fr; }
+    }
+
+    .tip-card {
+      background: var(--forest);
+      color: var(--white);
+      border-radius: 4px;
+      padding: 1.25rem;
+    }
+
+    .tip-icon { font-size: 1.4rem; margin-bottom: 0.6rem; }
+
+    .tip-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: var(--amber-lt);
+    }
+
+    .tip-body {
+      font-size: 0.67rem;
+      line-height: 1.7;
+      opacity: 0.82;
+    }
+
+    /* ─── DIVIDER ─────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin: 3rem 0;
+    }
+
+    /* ─── FOOTER ──────────────────────────────────────────────── */
+    footer {
+      background: var(--ink);
+      color: rgba(255,255,255,0.35);
+      text-align: center;
+      padding: 1.5rem 2rem;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    footer span { color: var(--amber); opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ──────────────────────────────────────────────── -->
+<header>
+  <div class="header-inner">
+    <div>
+      <p class="trip-label">APA Plant Inspection Tour · Spring 2025</p>
+      <h1>Charlotte to<br /><em>Virginia Beach</em></h1>
+      <div class="header-stats">
+        <div class="stat">
+          <div class="stat-num">4</div>
+          <div class="stat-label">Plants</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">6</div>
+          <div class="stat-label">Days</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">~430</div>
+          <div class="stat-label">Total Miles</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">16</div>
+          <div class="stat-label">Inspection Hours</div>
+        </div>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="badge">Family Trip</div>
+      <div style="font-size:0.62rem;color:rgba(255,255,255,0.45);line-height:1.6;margin-top:0.4rem;">
+        Fly in: <strong style="color:rgba(255,255,255,0.75)">CLT</strong><br />
+        Fly out: <strong style="color:rgba(255,255,255,0.75)">ORF</strong><br />
+        One-way rental car
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── MAIN PAGE ─────────────────────────────────────────────── -->
+<div class="page">
+  <div class="two-col">
+
+    <!-- LEFT: ITINERARY -->
+    <div>
+      <p class="section-label">Day by Day</p>
+      <h2 class="section-title">Full Itinerary</h2>
+
+      <div class="timeline">
+
+        <!-- DAY 1: Sunday -->
+        <div class="day">
+          <div class="day-dot travel">SUN</div>
+          <div class="day-header">
+            <span class="day-name">Sunday — Arrival</span>
+            <span class="day-tag tag-transit">Travel Day</span>
+          </div>
+          <div class="day-card">
+            <p>Fly into Charlotte Douglas (CLT). Pick up one-way rental car. Check in to hotel near the plant — the airport is only ~10 minutes from Lucas Concrete, so you have excellent options around the airport corridor or I-77 South.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Fly Into</span>
+                <span class="detail-val">CLT — Charlotte Douglas</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive</span>
+                <span class="detail-val">~10 min to hotel</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Stay Near</span>
+                <span class="detail-val">Charlotte (Airport / SW)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAY 2: Monday -->
+        <div class="day">
+          <div class="day-dot inspection">MON</div>
+          <div class="day-header">
+            <span class="day-name">Monday — Lucas Concrete</span>
+            <span class="day-tag tag-inspection">Inspection #1</span>
+          </div>
+          <div class="day-card">
+            <p>Short drive to Lucas Concrete Products — no early wake-up needed. Start inspection at 8 AM, wrap by noon. Afternoon is wide open in Charlotte: Discovery Place Kids, Freedom Park, or just a relaxed lunch near uptown. No drive today.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Arrival</span>
+                <span class="detail-val">8:00 AM</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Est. Duration</span>
+                <span class="detail-val">4 hours</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive to Plant</span>
+                <span class="detail-val">~10 min</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Stay Near</span>
+                <span class="detail-val">Charlotte (same hotel)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAY 3: Tuesday -->
+        <div class="day">
+          <div class="day-dot inspection">TUE</div>
+          <div class="day-header">
+            <span class="day-name">Tuesday — Cast Stone Systems</span>
+            <span class="day-tag tag-inspection">Inspection #2</span>
+          </div>
+          <div class="day-card">
+            <p>Drive ~2.5 hrs east to Warrenton, NC. Opens at 8 AM — leave Charlotte by 5:30 AM to arrive on time, or schedule for a 9–10 AM start if confirmed with the plant. Small town: consider staying in Henderson (~15 min south) for better hotel and Airbnb options.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Hours</span>
+                <span class="detail-val">M–F 8 AM – 5 PM</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Est. Duration</span>
+                <span class="detail-val">4 hours</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive from Charlotte</span>
+                <span class="detail-val">~2.5 hrs (I-85 N → US-1)</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Stay Near</span>
+                <span class="detail-val">Henderson, NC</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAY 4: Wednesday -->
+        <div class="day">
+          <div class="day-dot inspection">WED</div>
+          <div class="day-header">
+            <span class="day-name">Wednesday — P&amp;D Architectural Precast</span>
+            <span class="day-tag tag-inspection">Inspection #3</span>
+          </div>
+          <div class="day-card">
+            <p>Drive ~1.5 hrs southeast to LaGrange. P&amp;D opens at 7 AM — the earliest of all four plants. Start at 7, done by 11. Afternoon is yours. Stay near Kinston or Goldsboro for family-friendly dining and amenities.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Hours</span>
+                <span class="detail-val">M–F 7 AM – 5 PM</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Est. Duration</span>
+                <span class="detail-val">4 hours</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive from Warrenton</span>
+                <span class="detail-val">~1.5 hrs</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Stay Near</span>
+                <span class="detail-val">Kinston or Goldsboro</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAY 5: Thursday -->
+        <div class="day">
+          <div class="day-dot inspection">THU</div>
+          <div class="day-header">
+            <span class="day-name">Thursday — Seatack Cast Corp</span>
+            <span class="day-tag tag-inspection">Inspection #4</span>
+          </div>
+          <div class="day-card">
+            <p>Drive ~2.5 hrs to Virginia Beach. <strong>Seatack closes at 4 PM</strong> — earliest close of the trip. Arrive at 8 AM to finish with time to spare. Afternoon reward: Virginia Beach Oceanfront. Your 19-month-old will love the beach. Stay near the oceanfront — Airbnbs are plentiful and great for a family.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Hours</span>
+                <span class="detail-val warn">⚠ M–F 8 AM – 4 PM</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Est. Duration</span>
+                <span class="detail-val">4 hours</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive from LaGrange</span>
+                <span class="detail-val">~2.5 hrs (US-264 E)</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Stay Near</span>
+                <span class="detail-val">VB Oceanfront</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DAY 6: Friday -->
+        <div class="day">
+          <div class="day-dot family">FRI</div>
+          <div class="day-header">
+            <span class="day-name">Friday — Beach Morning &amp; Fly Home</span>
+            <span class="day-tag tag-family">Family + Transit</span>
+          </div>
+          <div class="day-card">
+            <p>Work is done. Let the family enjoy the beach in the morning — Virginia Aquarium, the boardwalk, or just sand and waves. ORF (Norfolk) is only 20 minutes from the oceanfront. Drop the one-way rental, fly home. Small airport, quick security — perfect with a toddler.</p>
+            <div class="detail-row">
+              <div class="detail-item">
+                <span class="detail-key">Fly Home From</span>
+                <span class="detail-val">ORF — Norfolk</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Drive to Airport</span>
+                <span class="detail-val">~20 min</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-key">Car Return</span>
+                <span class="detail-val">One-way drop at ORF</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /timeline -->
+    </div><!-- /left -->
+
+    <!-- RIGHT: MAP -->
+    <div id="map-wrap">
+      <p class="section-label">Route Overview</p>
+      <h2 class="section-title">CLT → ORF</h2>
+      <div id="map"></div>
+      <p class="map-caption">CLT → Charlotte → Warrenton → LaGrange → Virginia Beach → ORF</p>
+    </div>
+
+  </div><!-- /two-col -->
+
+  <hr class="divider" />
+
+  <!-- ─── PLANT CARDS ──────────────────────────────────────── -->
+  <div class="plants-section">
+    <p class="section-label">APA Inspections</p>
+    <h2 class="section-title">Plant Details</h2>
+    <div class="plants-grid">
+
+      <div class="plant-card">
+        <p class="plant-num">Stop 01 · Monday</p>
+        <p class="plant-name">Lucas Concrete Products</p>
+        <p class="plant-location">419 Scholtz Rd, Charlotte, NC 28217</p>
+        <div class="plant-meta">
+          <div class="meta-row">
+            <span class="meta-icon">🕗</span>
+            <span class="meta-text">Hours not listed — <strong>confirm before visit</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-text"><strong>+1 704-525-9622</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🚗</span>
+            <span class="meta-text">~10 min from CLT airport hotel. Easiest of the four stops.</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🏗</span>
+            <span class="meta-text">Concrete products manufacturer · APA inspection ~4 hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="plant-card">
+        <p class="plant-num">Stop 02 · Tuesday</p>
+        <p class="plant-name">Cast Stone Systems</p>
+        <p class="plant-location">532 N Main St, Warrenton, NC 27589</p>
+        <div class="plant-meta">
+          <div class="meta-row">
+            <span class="meta-icon">🕗</span>
+            <span class="meta-text">M–F <strong>8:00 AM – 5:00 PM</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-text"><strong>+1 252-257-1599</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🚗</span>
+            <span class="meta-text">~2.5 hrs from Charlotte via I-85 N then US-1. Stay in Henderson the night before.</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">⭐</span>
+            <span class="meta-text">4.5 stars — <em>"Best cast stone supplier in NC."</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="plant-card">
+        <p class="plant-num">Stop 03 · Wednesday</p>
+        <p class="plant-name">P&amp;D Architectural Precast</p>
+        <p class="plant-location">323 E Railroad St, La Grange, NC 28551</p>
+        <div class="plant-meta">
+          <div class="meta-row">
+            <span class="meta-icon">🕖</span>
+            <span class="meta-text">M–F <strong>7:00 AM – 5:00 PM</strong> — earliest open</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-text"><strong>+1 252-566-9811</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🚗</span>
+            <span class="meta-text">~1.5 hrs from Warrenton/Henderson area. Shortest drive of the trip.</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🌐</span>
+            <span class="meta-text"><a href="http://www.pdarchprecast.com" target="_blank" style="color:var(--forest);text-decoration:underline;">pdarchprecast.com</a></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="plant-card">
+        <p class="plant-num">Stop 04 · Thursday</p>
+        <p class="plant-name">Seatack Casting Corporation</p>
+        <p class="plant-location">1140 Loretta Ln, Virginia Beach, VA 23451</p>
+        <div class="plant-meta">
+          <div class="meta-row">
+            <span class="meta-icon">⚠️</span>
+            <span class="meta-text"><span class="alert">Closes 4:00 PM</span> — M–F 8:00 AM – 4:00 PM. Arrive at 8 sharp.</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-text"><strong>+1 757-497-1513</strong></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🚗</span>
+            <span class="meta-text">~2.5 hrs from LaGrange via US-264 E. Leave by 5:30 AM from hotel to be safe.</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">🏖</span>
+            <span class="meta-text">Virginia Beach Oceanfront 10 min away — family afternoon reward!</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /plants-section -->
+
+  <hr class="divider" />
+
+  <!-- ─── TIPS ──────────────────────────────────────────────── -->
+  <div class="tips-section">
+    <p class="section-label">Travel Notes</p>
+    <h2 class="section-title">Tips for the Trip</h2>
+    <div class="tips-grid">
+
+      <div class="tip-card">
+        <div class="tip-icon">🚗</div>
+        <p class="tip-title">One-Way Car Rental</p>
+        <p class="tip-body">Book a one-way rental from CLT to ORF well in advance. One-way fees vary but the routing is worth it — no backtracking to Charlotte. Enterprise and Hertz both service both airports.</p>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-icon">👶</div>
+        <p class="tip-title">19-Month-Old on the Road</p>
+        <p class="tip-body">No drive exceeds 2.5 hrs. Budget an extra 30–45 min per drive for a stop. Staying close to each plant means no early-morning wake-ups. Pack the white-noise machine and keep nap time sacred.</p>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-icon">🏨</div>
+        <p class="tip-title">Where to Stay</p>
+        <p class="tip-body">Charlotte: airport corridor hotels are convenient. Henderson, NC: better options than Warrenton itself. Kinston/Goldsboro: solid mid-trip base. Virginia Beach oceanfront: Airbnbs ideal — beach access, kitchen, space for a toddler.</p>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-icon">📋</div>
+        <p class="tip-title">Confirm Plant Hours</p>
+        <p class="tip-body">Lucas Concrete's hours weren't listed — call ahead at 704-525-9622. All plants are Mon–Fri only. Confirm your inspection schedule dates as soon as possible, as plants need advance notice for APA visits.</p>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-icon">⚠️</div>
+        <p class="tip-title">Seatack Is the Wild Card</p>
+        <p class="tip-body">The 4 PM close at Seatack is the tightest constraint on the whole trip. Do not push this to Friday. A 8 AM Thursday start gives you a 4-hour buffer. If the drive from LaGrange runs long, call ahead.</p>
+      </div>
+
+      <div class="tip-card">
+        <div class="tip-icon">🏖</div>
+        <p class="tip-title">Virginia Beach Finish</p>
+        <p class="tip-body">This is a genuinely great spot to end the trip. Virginia Aquarium & Marine Science Center is excellent with toddlers. ORF is only 20 min away, small and easy. Consider flying home Saturday for a full beach day Friday.</p>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<footer>
+  <span>APA Plant Inspection Tour</span> · NC / VA · Family Route · CLT → ORF · One-Way Rental
+</footer>
+
+<!-- ─── LEAFLET JS ─────────────────────────────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Locations
+  const stops = [
+    { name: "CLT — Charlotte Douglas Airport",  lat: 35.2163, lng: -80.9539, type: "airport",     day: "Sun", color: "#2c4a32" },
+    { name: "Lucas Concrete Products",           lat: 35.1718, lng: -80.8834, type: "inspection", day: "Mon", color: "#c8831a" },
+    { name: "Cast Stone Systems",                lat: 36.4073, lng: -78.1535, type: "inspection", day: "Tue", color: "#c8831a" },
+    { name: "P&D Architectural Precast",         lat: 35.3036, lng: -77.7765, type: "inspection", day: "Wed", color: "#c8831a" },
+    { name: "Seatack Casting Corporation",       lat: 36.8409, lng: -76.0001, type: "inspection", day: "Thu", color: "#c8831a" },
+    { name: "ORF — Norfolk International Airport", lat: 36.8935, lng: -76.1994, type: "airport",  day: "Fri", color: "#8b3a2a" },
+  ];
+
+  // Init map centered on the route
+  const map = L.map('map', {
+    center: [36.0, -78.9],
+    zoom: 7,
+    zoomControl: true,
+    scrollWheelZoom: false
+  });
+
+  // Tile layer — CartoDB Voyager (clean, warm, no API key)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Draw route line
+  const routeCoords = stops.map(s => [s.lat, s.lng]);
+  L.polyline(routeCoords, {
+    color: '#c8831a',
+    weight: 2.5,
+    opacity: 0.7,
+    dashArray: '6, 8'
+  }).addTo(map);
+
+  // Add markers
+  stops.forEach((stop, i) => {
+    const isAirport    = stop.type === 'airport';
+    const emoji        = isAirport ? '✈' : (i + '').replace('0','');
+    const dotHtml = `
+      <div style="
+        width:32px; height:32px;
+        background:${stop.color};
+        border: 2px solid #f5f0e8;
+        border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-family:'DM Mono',monospace;
+        font-size:${isAirport ? '13px' : '11px'};
+        color:#fdfaf4;
+        font-weight:500;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      ">${isAirport ? emoji : stop.day}</div>
+    `;
+
+    const icon = L.divIcon({
+      html: dotHtml,
+      className: '',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -18]
+    });
+
+    L.marker([stop.lat, stop.lng], { icon })
+      .addTo(map)
+      .bindPopup(`
+        <div style="font-family:'DM Mono',monospace; min-width:160px;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:#c8831a;margin-bottom:3px;">${stop.day}</div>
+          <strong style="font-family:'Cormorant Garamond',serif;font-size:0.95rem;color:#1a1a14;">${stop.name}</strong>
+        </div>
+      `, { maxWidth: 220 });
+  });
+
+  // Fit bounds to all stops
+  const bounds = L.latLngBounds(routeCoords);
+  map.fitBounds(bounds, { padding: [40, 40] });
+</script>
+</body>
+</html>
